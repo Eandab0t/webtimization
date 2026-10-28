@@ -1,0 +1,17 @@
+[project]
+name = "webtimization"
+version = "0.1.0"
+description = "Offline web-page optimizer (HTML/CSS/JS minification + Brotli/gzip precompression)"
+requires-python = ">=3.10"
+dependencies = [
+    "click>=8.0",
+    "htmlmin>=0.1",
+    "jsmin>=3.0",
+    "cssmin>=0.2",
+]
+
+[project.optional-dependencies]
+bench = ["pyyaml"]
+
+[project.scripts]
+arachni-opt = "arachni_opt.cli:main"
