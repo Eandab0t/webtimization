@@ -1,17 +1,31 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
 [project]
-name = "webtimization"
-version = "0.1.0"
-description = "Offline web-page optimizer (HTML/CSS/JS minification + Brotli/gzip precompression)"
+name = "webtim"
+dynamic = ["version"]
+description = "Offline web-page optimizer (HTML/CSS/JS minification, Brotli/gzip precompression, cache-busting, server configs)"
+readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "click>=8.0",
     "htmlmin>=0.1",
-    "jsmin>=3.0",
+    "rjsmin>=1.2",  # replaced jsmin: it drops spaces inside template literals
     "cssmin>=0.2",
+    "brotli>=1.0",
 ]
 
 [project.optional-dependencies]
-bench = ["pyyaml"]
+images = ["Pillow>=10"]   # only needed for --webp
+test = ["pytest", "Pillow>=10"]
 
 [project.scripts]
-arachni-opt = "arachni_opt.cli:main"
+webtim = "webtim.cli:main"
+webtim-serve = "webtim.serve:main"
+
+[tool.setuptools]
+packages = ["webtim"]
+
+[tool.setuptools.dynamic]
+version = {attr = "webtim.__version__"}

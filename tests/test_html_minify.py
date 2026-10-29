@@ -1,15 +1,12 @@
-import pytest
-from arachni_opt.html_minify import minify
+from webtim.html_minify import minify
 
 
 def test_removes_comments():
-    html = \"\"\"<!-- hello --> <div>hello</div>\"\"\"
-    result = minify(html)
-    assert 'hello' in result
-    assert '<!--' not in result
+    result = minify("<!-- hello --> <div>hello</div>")
+    assert "hello" in result
+    assert "<!--" not in result
 
 
 def test_collapse_whitespace():
-    html = \"<div>  hello   world  </div>\"
-    result = minify(html)
-    assert 'hello' in result and 'world' in result
+    result = minify("<div>  hello   world  </div>")
+    assert "hello world" in result
