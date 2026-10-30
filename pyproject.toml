@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "webtim"
 dynamic = ["version"]
-description = "Offline web-page optimizer (HTML/CSS/JS minification, Brotli/gzip precompression, cache-busting, server configs)"
+description = "WebTimize Compressor: local static-site optimizer with reporting and safe staged output"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [

@@ -87,7 +87,7 @@ _REF = re.compile(r"""((?:src\s*=\s*|url\()\s*["']?)([^"'\s)>]+)""", re.I)
 
 
 # shortcut: inlining into a page shared by many routes defeats caching, keep the threshold small
-def inline_small(site: Site, max_bytes: int) -> int:
+def inline_small(site: Site, max_bytes: int, dropped: list | None = None) -> int:
     """Replace refs to images <= max_bytes with data: URIs, then drop files nothing references. Returns count."""
     inlined = set()
 
@@ -110,6 +110,8 @@ def inline_small(site: Site, max_bytes: int) -> int:
     for t in inlined:
         if t.name not in still_used:
             del site[t]
+            if dropped is not None:
+                dropped.append(t)
     return len(inlined)
 
 

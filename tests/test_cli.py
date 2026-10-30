@@ -91,6 +91,51 @@ def test_no_web_files(tmp_path):
     assert "No HTML/CSS/JS" in run(tmp_path)
 
 
+def test_json_report_records_counts_sizes_and_transformations(site_dir, tmp_path):
+    report = tmp_path / "report.json"
+    run(site_dir, "-o", tmp_path / "out", "--hash", "--defer-scripts", "--report", report)
+    data = json.loads(report.read_text())
+    assert data["status"] == "ok" and data["dry_run"] is False
+    assert data["counts"]["discovered"] >= data["counts"]["skipped"]
+    assert data["counts"]["output_files"] > 0
+    assert data["sizes"]["saved_bytes"] == data["sizes"]["original_bytes"] - data["sizes"]["output_bytes"]
+    assert data["transformations"]["hashed"] > 0 and data["transformations"]["deferred"] > 0
+    assert data["duration_ms"] >= 0 and all("path" in f for f in data["files"])
+
+
+def test_dry_run_report_writes_no_output(site_dir, tmp_path):
+    out, report = tmp_path / "out", tmp_path / "report.json"
+    run(site_dir, "-o", out, "--dry-run", "--report", report)
+    assert not out.exists()
+    data = json.loads(report.read_text())
+    assert data["dry_run"] is True and data["sizes_are_estimated"] is True
+
+
+def test_success_replaces_stale_output(site_dir, tmp_path):
+    out = tmp_path / "out"
+    out.mkdir()
+    (out / "stale.txt").write_text("old")
+    run(site_dir, "-o", out)
+    assert not (out / "stale.txt").exists() and (out / "index.html").is_file()
+
+
+def test_failed_validation_keeps_existing_output(site_dir, tmp_path, monkeypatch):
+    out = tmp_path / "out"
+    out.mkdir()
+    (out / "keep.txt").write_text("old")
+    monkeypatch.setattr("webtim.build.validate_sidecars", lambda destination, site: ["broken"])
+    r = CliRunner().invoke(main, [str(site_dir), "-o", str(out)])
+    assert r.exit_code != 0 and "broken" in r.output
+    assert (out / "keep.txt").read_text() == "old"
+
+
+def test_output_cannot_replace_input(site_dir, tmp_path):
+    before = (site_dir / "index.html").read_bytes()
+    r = CliRunner().invoke(main, [str(site_dir), "-o", str(site_dir)])
+    assert r.exit_code != 0 and "must not be" in r.output
+    assert (site_dir / "index.html").read_bytes() == before
+
+
 def test_identity_is_one_name():
     """The project answers to `webtim` everywhere: version text, help usage, package."""
     import webtim
