@@ -64,6 +64,7 @@ def optimize(
     stats.setdefault("inlined", 0)
     stats.setdefault("dropped", [])
     stats.setdefault("hashed", {})
+    stats.setdefault("hash_skipped", {})
     stats.setdefault("deferred", 0)
 
     site, undecodable = {}, {}
@@ -93,7 +94,13 @@ def optimize(
         stats["inlined"] = T.inline_small(site, inline, dropped=dropped)
         stats["dropped"].extend(str(path) for path in dropped)
     if hash_names:
-        stats["hashed"] = {str(old): str(new) for old, new in T.hash_names(site).items()}
+        skipped_hash: dict = {}
+        stats["hashed"] = {
+            str(old): str(new) for old, new in T.hash_names(site, skipped=skipped_hash).items()
+        }
+        stats["hash_skipped"] = skipped_hash
+        for reason in skipped_hash.values():
+            warn(reason)
     if defer:
         stats["deferred"] = T.defer_scripts(site)
 
@@ -248,6 +255,7 @@ def build(
         "webp": len(stats["webp"]),
         "inlined": stats["inlined"],
         "hashed": len(stats["hashed"]),
+        "hashed_skipped": len(stats["hash_skipped"]),
         "deferred": stats["deferred"],
         "dropped": len(stats["dropped"]),
     }

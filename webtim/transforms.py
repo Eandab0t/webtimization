@@ -149,9 +149,22 @@ def defer_scripts(site: Site) -> int:
     return count
 
 
+def _absolute_refs(site: Site, paths) -> dict:
+    """Paths named by an absolute URL we cannot rewrite safely (the deploy host is unknown)."""
+    corpus = "\n".join(_text(site, p) for p in site if p.suffix in TEXT)
+    blocked = {}
+    for p in paths:
+        if re.search(r"(?i)(?:https?:)?//[^\s\"'<>()]*" + re.escape(p.name), corpus):
+            blocked[p] = f"{p}: absolute URL reference, not hashed"
+    return blocked
+
+
 # shortcut: refs built at runtime ("img/" + name + ".png") are invisible here, use a bundler for those sites
-def hash_names(site: Site) -> dict:
+def hash_names(site: Site, skipped: dict | None = None) -> dict:
     """Rename assets to name.<sha256[:8]>.ext so they can be cached forever. Returns the renames.
+
+    An asset named by an absolute URL is left alone: rewriting that URL would guess the deploy
+    host, and shipping both the original and a hashed copy only grows the output.
 
     Pass 1 hashes leaves (images/fonts) and rewrites refs; pass 2 hashes css/js, whose bytes
     now include the leaf renames. css/js that another css/js file refers to by name are left
@@ -163,9 +176,15 @@ def hash_names(site: Site) -> dict:
         _rename(site, moves)
         return {o: n for o, (n, _) in moves.items()}
 
-    renames = rename([p for p in site if p.suffix.lower() in HASHABLE - {".css", ".js"}])
+    blocked = _absolute_refs(site, [p for p in site if p.suffix.lower() in HASHABLE])
+    if skipped is not None:
+        skipped.update(blocked)
+
+    renames = rename([p for p in site if p.suffix.lower() in HASHABLE - {".css", ".js"}
+                      and p not in blocked])
     code = [p for p in site if p.suffix in {".css", ".js"}]
     others = {p: _text(site, p) for p in code}
-    safe = [p for p in code if not any(p.name in t for q, t in others.items() if q != p)]
+    safe = [p for p in code if p not in blocked
+            and not any(p.name in t for q, t in others.items() if q != p)]
     renames.update(rename(safe))
     return renames

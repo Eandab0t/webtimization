@@ -91,10 +91,22 @@ def test_hash_skips_js_imported_by_other_js():
     assert P("main.js") not in site  # nothing imports main.js, so it is safely hashed
 
 
-def test_absolute_url_reference_keeps_original_copy():
+def test_absolute_url_reference_skips_hashing_without_duplicating():
     site = {P("i.html"): b'<img src="b.png"><meta content="https://x.com/b.png">', P("b.png"): png((2, 2))}
-    T.hash_names(site)
-    assert P("b.png") in site and any(p.name != "b.png" and p.suffix == ".png" for p in site)
+    skipped = {}
+    T.hash_names(site, skipped=skipped)
+    assert list(site) == [P("i.html"), P("b.png")]  # one copy, still resolvable by both refs
+    assert P("b.png") in skipped
+
+
+def test_absolute_css_reference_skips_hashing():
+    site = {P("i.html"): b'<link href="s.css">', P("s.css"): b'body{background:url(https://x.com/bg.png)}',
+            P("bg.png"): png((2, 2))}
+    skipped = {}
+    T.hash_names(site, skipped=skipped)
+    assert P("bg.png") in site and P("bg.png") in skipped
+    css = next(p for p in site if p.suffix == ".css")
+    assert "https://x.com/bg.png" in site[css].decode()
 
 
 def test_webp_converts_and_rewrites():

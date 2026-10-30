@@ -24,7 +24,7 @@ webtim-serve ./dist                 # small deployments; production should use n
 | `--webp` | PNG/JPEG to WebP when smaller (lossless for PNG, q80 for JPEG); rewrites references | No `<picture>` fallback |
 | `--inline-small BYTES` | Images up to BYTES become `data:` URIs in HTML/CSS (SVG is URL-encoded, the rest base64); the file is dropped if nothing else names it | Can increase total bytes; measure with `--report`. Hurts caching if the page is shared by many routes |
 | `--defer-scripts` | Adds `defer` to external classic scripts | Pages with inline classic scripts are skipped entirely; module/async/already-deferred scripts untouched |
-| `--hash` | Renames assets to `name.<sha256[:8]>.ext`, rewrites references, so they can be cached for a year | JS/CSS that another JS/CSS file names (e.g. `import "./util.js"`) is not renamed. References built at runtime are invisible. If an absolute URL (og:image, manifest) still names the old file, the original is kept too |
+| `--hash` | Renames assets to `name.<sha256[:8]>.ext`, rewrites references, so they can be cached for a year | JS/CSS that another JS/CSS file names (e.g. `import "./util.js"`) is not renamed. References built at runtime are invisible. An asset still named by an absolute URL (og:image, manifest) is left unhashed and reported, instead of shipping a second copy |
 | `--emit-config nginx\|caddy` | Writes `<out>.nginx.conf` / `<out>.caddy.conf` **next to** the output dir | `brotli_static` is emitted commented out: it needs the ngx_brotli module |
 | `--report PATH` | Writes a machine-readable JSON build report | Written even for `--dry-run`; dry-run sizes are estimates |
 
@@ -57,7 +57,7 @@ HTML is minified last because the rewriting regexes expect the author's markup.
     "gzip_wire_bytes": 39120,
     "brotli_wire_bytes": 34210
   },
-  "transformations": { "minified": 8, "webp": 2, "inlined": 1, "hashed": 6, "deferred": 3, "dropped": 1 },
+  "transformations": { "minified": 8, "webp": 2, "inlined": 1, "hashed": 6, "hashed_skipped": 0, "deferred": 3, "dropped": 1 },
   "duration_ms": 214
 }
 ```
@@ -66,6 +66,8 @@ HTML is minified last because the rewriting regexes expect the author's markup.
 `no_web_files`. Per-file output records include `path`, `bytes`, `gzip_bytes`, and `brotli_bytes`.
 `gzip_wire_bytes`/`brotli_wire_bytes` use the smaller generated sidecar (or the original when no
 sidecar was written) and exclude HTTP overhead. For `--dry-run`, `sizes_are_estimated` is `true`.
+`hashed_skipped` counts assets left unhashed because an absolute URL still names them; each one also
+appears in `warnings`, so a build never hides why an asset kept its original name.
 
 ## Cache policy it generates
 
@@ -74,7 +76,7 @@ sidecar was written) and exclude HTTP overhead. For `--dry-run`, `sizes_are_esti
 
 ## Tests
 
-`pytest` (needs Pillow; node is used for JS round-trip tests when present). Current baseline: **45
+`pytest` (needs Pillow; node is used for JS round-trip tests when present). Current baseline: **46
 tests passing**. The nginx output was checked against a real nginx 1.24 (`nginx -t` and curl).
 Brotli serving and the Caddy snippet were **not** run against real servers.
 
@@ -91,8 +93,9 @@ SOURCES.md         why each default was chosen, and what was verified
 
 - Reference rewriting is regex-based; runtime-built URLs and every modern JS import form are not
   visible to it.
-- Hashing can increase total output bytes when an absolute URL forces both the original and a hashed
-  copy to ship. The JSON report makes this visible.
+- Hashing leaves an asset alone when an absolute URL names it, because the deploy host is unknown;
+  those assets keep their original names and miss long-term caching. They are counted as
+  `hashed_skipped` and listed as warnings.
 - Inlining trades request count for bytes; it is not automatically a net win.
 - `htmlmin` imports the deprecated `cgi` module, which is removed in Python 3.13.
 - Browser-level visual validation is not part of this tool; test representative sites before

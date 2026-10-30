@@ -60,7 +60,7 @@ The market splits into measurement tools and transform tools. Neither category c
 ## 4. Technical limitations
 
 - Regex-based reference rewriting cannot see URLs built at runtime, template expressions, or every modern JS import form.
-- Hashing can legitimately increase total output bytes when an absolute URL (for example `og:image`) forces both the original and hashed copies to ship.
+- An asset named by an absolute URL (for example `og:image`) cannot be renamed without guessing the deploy host, so it is deliberately left unhashed and reported rather than shipped twice.
 - Pure-Python JS minification is token-level only; it cannot match AST-based minifiers.
 - `htmlmin` imports the deprecated `cgi` module; Python 3.13 removal will require replacing or pinning it.
 - Inlining small images trades request count for bytes; the existing `--inline-small` option does not prove a net payload win on every page.
@@ -78,10 +78,11 @@ The market splits into measurement tools and transform tools. Neither category c
 1. **JSON build reports** with counts, byte sizes, transformations, warnings, errors, and timing. Implemented.
 2. **Staged output** so a failed build cannot replace a working deployment. Implemented.
 3. **Sidecar validation** by decompressing every generated `.gz`/`.br` and comparing bytes. Implemented.
-4. **Deterministic output** where practical (gzip mtime=0 already; sorted traversal).
-5. **License-comment preservation** in a future JS minifier.
-6. **Manifest output** for hashed assets, so frameworks and CDNs can consume the mapping.
-7. **Opt-in aggressive transforms** with explicit compatibility warnings.
+4. **No-growth hashing** that skips assets named by absolute URLs and reports each skip. Implemented.
+5. **Deterministic output** where practical (gzip mtime=0 already; sorted traversal).
+6. **License-comment preservation** in a future JS minifier.
+7. **Manifest output** for hashed assets, so frameworks and CDNs can consume the mapping.
+8. **Opt-in aggressive transforms** with explicit compatibility warnings.
 
 ## 7. Features WebTimize should avoid duplicating
 
