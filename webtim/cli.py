@@ -48,7 +48,7 @@ def main(input, output_dir, dry_run, verbose, webp, inline, defer, hash_names, e
             src, out, webp=webp, inline=inline, defer=defer, hash_names=hash_names,
             emit_config=emit_config, dry_run=dry_run,
             verbose=(lambda message: click.echo(message)) if verbose else None,
-            warn=lambda message: click.echo(f"warning: {message}", err=True),
+            warn=lambda message: click.secho(f"warning: {message}", fg="yellow", err=True),
         )
     except BuildError as exc:
         raise click.ClickException(str(exc)) from exc
@@ -62,8 +62,9 @@ def main(input, output_dir, dry_run, verbose, webp, inline, defer, hash_names, e
     click.echo()
     click.secho("Totals:", bold=True)
     click.echo(f"  Input:   {counts['discovered']:>4d} files {sizes['original_bytes']:>9d} bytes")
+    saved = _pct(sizes["output_bytes"], sizes["original_bytes"])
     click.echo(f"  Output:  {counts['output_files']:>4d} files {sizes['output_bytes']:>9d} bytes "
-               f"({_pct(sizes['output_bytes'], sizes['original_bytes'])} saved)")
+               f"({click.style(saved, fg='green' if sizes['output_bytes'] <= sizes['original_bytes'] else 'yellow')} saved)")
     click.echo(f"  Over the wire, gzip:   {sizes['gzip_wire_bytes']:>9d} bytes "
                f"({_pct(sizes['gzip_wire_bytes'], sizes['original_bytes'])} vs input)")
     click.echo(f"  Over the wire, brotli: {sizes['brotli_wire_bytes']:>9d} bytes "

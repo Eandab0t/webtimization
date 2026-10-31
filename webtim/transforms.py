@@ -62,14 +62,17 @@ def _rename(site: Site, moves: dict) -> None:
 
 
 # shortcut: no <picture> fallback, every current browser decodes WebP; add one if you must support ancient ones
-def to_webp(site: Site) -> dict:
+def to_webp(site: Site, skipped: dict | None = None) -> dict:
     """PNG/JPEG -> WebP when Pillow is installed and the result is smaller. Returns the renames."""
     try:
         from PIL import Image
     except ImportError:
         return {}
+    unsafe = unsafe_renames(site)
+    if skipped is not None:
+        skipped.update(unsafe)
     moves = {}
-    for p in [p for p in site if p.suffix.lower() in {".png", ".jpg", ".jpeg"}]:
+    for p in [p for p in site if p.suffix.lower() in {".png", ".jpg", ".jpeg"} and p not in unsafe]:
         try:
             img = Image.open(io.BytesIO(site[p]))
             buf = io.BytesIO()
@@ -149,22 +152,52 @@ def defer_scripts(site: Site) -> int:
     return count
 
 
-def _absolute_refs(site: Site, paths) -> dict:
-    """Paths named by an absolute URL we cannot rewrite safely (the deploy host is unknown)."""
+_DYNAMIC_PATH = re.compile(
+    r"""(["'`])([^"'`\s]*/)(?:\1\s*\+|\$\{[^}]*\}(\.\w+)?)"""  # "img/" + name, or `img/${name}.png`
+)
+
+
+def _runtime_prefixes(site: Site) -> dict:
+    """{path suffix: [(file, extension or None)]} for paths assembled at runtime.
+
+    A JS string is resolved against the *document*, not the script file, so the prefix is matched
+    as a directory suffix instead of being resolved against the file that contains it. A template
+    literal tells us the extension (`${name}.png`); concatenation alone does not, so it matches all.
+    """
+    found = {}
+    for page in [p for p in site if p.suffix in TEXT]:
+        for _, prefix, ext in _DYNAMIC_PATH.findall(_text(site, page)):
+            prefix = prefix.lstrip("./")
+            if prefix:
+                found.setdefault(prefix, []).append((str(page), ext.lower() or None))
+    return found
+
+
+def unsafe_renames(site: Site) -> dict:
+    """{path: reason} for assets a rename would break: an absolute URL or a runtime-built path names them."""
     corpus = "\n".join(_text(site, p) for p in site if p.suffix in TEXT)
-    blocked = {}
-    for p in paths:
+    runtime = _runtime_prefixes(site)
+    unsafe = {}
+    for p in [p for p in site if p.suffix.lower() in HASHABLE]:
         if re.search(r"(?i)(?:https?:)?//[^\s\"'<>()]*" + re.escape(p.name), corpus):
-            blocked[p] = f"{p}: absolute URL reference, not hashed"
-    return blocked
+            unsafe[p] = f"{p}: absolute URL reference, not renamed"
+            continue
+        parent = str(p.parent) + "/"
+        for prefix, refs in runtime.items():
+            ext = next((e or "" for _, e in refs if e in (None, p.suffix.lower())), "")
+            if parent.endswith(prefix) and any(e in (None, p.suffix.lower()) for _, e in refs):
+                unsafe[p] = f"{prefix}*{ext}: assembled at runtime in {refs[0][0]}, not renamed"
+                break
+    return unsafe
 
 
 # shortcut: refs built at runtime ("img/" + name + ".png") are invisible here, use a bundler for those sites
 def hash_names(site: Site, skipped: dict | None = None) -> dict:
     """Rename assets to name.<sha256[:8]>.ext so they can be cached forever. Returns the renames.
 
-    An asset named by an absolute URL is left alone: rewriting that URL would guess the deploy
-    host, and shipping both the original and a hashed copy only grows the output.
+    An asset named by an absolute URL or by a path the page builds at runtime is left alone:
+    the new name cannot be written back, and shipping both the original and a hashed copy only
+    grows the output.
 
     Pass 1 hashes leaves (images/fonts) and rewrites refs; pass 2 hashes css/js, whose bytes
     now include the leaf renames. css/js that another css/js file refers to by name are left
@@ -176,7 +209,7 @@ def hash_names(site: Site, skipped: dict | None = None) -> dict:
         _rename(site, moves)
         return {o: n for o, (n, _) in moves.items()}
 
-    blocked = _absolute_refs(site, [p for p in site if p.suffix.lower() in HASHABLE])
+    blocked = unsafe_renames(site)
     if skipped is not None:
         skipped.update(blocked)
 

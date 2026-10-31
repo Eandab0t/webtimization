@@ -109,6 +109,22 @@ def test_absolute_css_reference_skips_hashing():
     assert "https://x.com/bg.png" in site[css].decode()
 
 
+def test_runtime_built_path_skips_hashing():
+    for js in (b'src = `img/${name}.png`', b'src = "img/" + name + ".png"'):
+        site = {P("index.html"): b'<img src="img/a.png">', P("app.js"): js, P("img/a.png"): png((2, 2))}
+        skipped = {}
+        T.hash_names(site, skipped=skipped)
+        assert P("img/a.png") in site and P("img/a.png") in skipped
+
+
+def test_runtime_built_path_skips_webp():
+    site = {P("index.html"): b'<img src="img/a.png">', P("app.js"): b'src = `img/${name}.png`',
+            P("img/a.png"): png((300, 300))}
+    skipped = {}
+    assert T.to_webp(site, skipped=skipped) == {}
+    assert P("img/a.png") in site and P("img/a.png") in skipped
+
+
 def test_webp_converts_and_rewrites():
     site = {P("i.html"): b'<img src="big.png">', P("big.png"): png((400, 200))}
     assert T.to_webp(site) == {P("big.png"): P("big.webp")}

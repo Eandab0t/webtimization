@@ -43,10 +43,11 @@ def test_full_pipeline(site_dir, tmp_path):
     # icon: webp first (a 4x4 PNG shrinks), then inlined as that webp, and its file dropped
     assert "data:image/webp;base64," in index
     assert not list(out.glob("img/icon*"))
-    banners = list(out.glob("img/banner.*.webp"))
-    assert len(banners) == 1 and banners[0].name in index
-    # og:image absolute URL still resolves: the original banner.png was kept
-    assert (out / "img/banner.png").is_file() and "https://example.com/img/banner.png" in index
+    # banner.png is named by an absolute og:image URL, so it is never converted or renamed: both
+    # refs keep working and no second copy ships (that duplicate was the output-growth bug).
+    assert not list(out.glob("img/banner.*.*"))
+    assert (out / "img/banner.png").is_file()
+    assert "/img/banner.png" in index and "https://example.com/img/banner.png" in index
     # hashed css/js referenced from html; app.js deferred, async other.js untouched
     app_js = next(p.name for p in (out / "js").glob("app.*.js"))
     assert re.search(rf'<script src="?js/{app_js}"? defer', index)

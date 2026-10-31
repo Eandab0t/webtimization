@@ -88,7 +88,11 @@ def optimize(
             stats["failed"].append(str(path))
 
     if webp:
-        stats["webp"] = {str(old): str(new) for old, new in T.to_webp(site).items()}
+        skipped_webp: dict = {}
+        stats["webp"] = {str(old): str(new) for old, new in T.to_webp(site, skipped=skipped_webp).items()}
+        stats["webp_skipped"] = skipped_webp
+        for reason in skipped_webp.values():
+            warn(reason)
     if inline:
         dropped = []
         stats["inlined"] = T.inline_small(site, inline, dropped=dropped)
@@ -211,8 +215,9 @@ def build(
     warnings: list[str] = []
 
     def record_warning(message: str) -> None:
-        warnings.append(message)
-        warn(message)
+        if message not in warnings:
+            warnings.append(message)
+            warn(message)
 
     if output == source or output in source.parents:
         raise BuildError("output must not be the input directory or contain it")
@@ -253,6 +258,7 @@ def build(
     report["transformations"] = {
         "minified": len(stats["minified"]),
         "webp": len(stats["webp"]),
+        "webp_skipped": len(stats.get("webp_skipped", {})),
         "inlined": stats["inlined"],
         "hashed": len(stats["hashed"]),
         "hashed_skipped": len(stats["hash_skipped"]),
