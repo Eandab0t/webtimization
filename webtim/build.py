@@ -58,6 +58,7 @@ def optimize(
     """Run the pipeline on {path: bytes} and return the optimized {path: bytes}."""
     stats = stats if stats is not None else {}
     stats.setdefault("minified", [])
+    stats.setdefault("minified_unchanged", [])
     stats.setdefault("skipped", [])
     stats.setdefault("failed", [])
     stats.setdefault("webp", {})
@@ -79,13 +80,19 @@ def optimize(
                 continue
         site[path] = data
 
-    for path in [p for p in site if p.suffix in {".css", ".js"}]:
+    def minify(path, minifier) -> None:
+        before = site[path]
         try:
-            site[path] = MINIFIERS[path.suffix](site[path].decode("utf-8")).encode("utf-8")
-            stats["minified"].append(str(path))
+            site[path] = minifier(before.decode("utf-8")).encode("utf-8")
         except Exception as exc:  # a minifier choking must never lose the original file
             warn(f"{path}: minify failed ({exc}), copied unchanged")
             stats["failed"].append(str(path))
+            return
+        bucket = "minified" if site[path] != before else "minified_unchanged"
+        stats[bucket].append(str(path))
+
+    for path in [p for p in site if p.suffix in {".css", ".js"}]:
+        minify(path, MINIFIERS[path.suffix])
 
     if webp:
         skipped_webp: dict = {}
@@ -109,11 +116,7 @@ def optimize(
         stats["deferred"] = T.defer_scripts(site)
 
     for path in [p for p in site if p.suffix == ".html"]:
-        try:
-            site[path] = minify_html(site[path].decode("utf-8")).encode("utf-8")
-        except Exception as exc:
-            warn(f"{path}: minify failed ({exc}), copied unchanged")
-            stats["failed"].append(str(path))
+        minify(path, minify_html)
     return {**site, **undecodable}
 
 
@@ -257,6 +260,7 @@ def build(
     report["files"] = records
     report["transformations"] = {
         "minified": len(stats["minified"]),
+        "minified_unchanged": len(stats["minified_unchanged"]),
         "webp": len(stats["webp"]),
         "webp_skipped": len(stats.get("webp_skipped", {})),
         "inlined": stats["inlined"],

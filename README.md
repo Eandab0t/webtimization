@@ -57,13 +57,16 @@ HTML is minified last because the rewriting regexes expect the author's markup.
     "gzip_wire_bytes": 39120,
     "brotli_wire_bytes": 34210
   },
-  "transformations": { "minified": 8, "webp": 2, "inlined": 1, "hashed": 6, "hashed_skipped": 0, "deferred": 3, "dropped": 1 },
+  "transformations": { "minified": 8, "minified_unchanged": 2, "webp": 2, "inlined": 1, "hashed": 6, "hashed_skipped": 0, "deferred": 3, "dropped": 1 },
   "duration_ms": 214
 }
 ```
 
 `status` is `ok`, `partial` (some transform failed and its file was copied unchanged), or
 `no_web_files`. Per-file output records include `path`, `bytes`, `gzip_bytes`, and `brotli_bytes`.
+`minified` counts every file whose bytes the minifier changed, HTML included; `minified_unchanged`
+counts files the minifier ran on and returned identical, so the two together equal the number of
+HTML/CSS/JS files processed — a build can no longer shrink 11 files while reporting 9.
 `gzip_wire_bytes`/`brotli_wire_bytes` use the smaller generated sidecar (or the original when no
 sidecar was written) and exclude HTTP overhead. For `--dry-run`, `sizes_are_estimated` is `true`.
 `hashed_skipped` counts assets left unhashed because an absolute URL still names them; each one also
@@ -76,7 +79,7 @@ appears in `warnings`, so a build never hides why an asset kept its original nam
 
 ## Tests
 
-`pytest` (needs Pillow; node is used for JS round-trip tests when present). Current baseline: **46
+`pytest` (needs Pillow; node is used for JS round-trip tests when present). Current baseline: **49
 tests passing**. The nginx output was checked against a real nginx 1.24 (`nginx -t` and curl).
 Brotli serving and the Caddy snippet were **not** run against real servers.
 

@@ -104,6 +104,22 @@ def test_json_report_records_counts_sizes_and_transformations(site_dir, tmp_path
     assert data["duration_ms"] >= 0 and all("path" in f for f in data["files"])
 
 
+def test_minify_counts_cover_html_and_report_idle_minifiers(site_dir, tmp_path):
+    """`minified` counts every file minification changed, HTML included; idle runs are counted too.
+
+    The old report counted only CSS/JS, so a build could shrink 11 files while reporting 9.
+    """
+    report = tmp_path / "report.json"
+    run(site_dir, "-o", tmp_path / "out", "--report", report)
+    data = json.loads(report.read_text())
+    transforms = data["transformations"]
+    targets = [p for p in site_dir.rglob("*") if p.suffix in {".html", ".css", ".js"}]
+    assert transforms["minified"] + transforms["minified_unchanged"] == len(targets)
+    assert transforms["minified"] >= 1 + 1  # index.html (has a comment) and app.css both shrink
+    html = {f["path"] for f in data["files"] if f["path"].endswith(".html")}
+    assert len(html) <= transforms["minified"] + transforms["minified_unchanged"]
+
+
 def test_dry_run_report_writes_no_output(site_dir, tmp_path):
     out, report = tmp_path / "out", tmp_path / "report.json"
     run(site_dir, "-o", out, "--dry-run", "--report", report)
